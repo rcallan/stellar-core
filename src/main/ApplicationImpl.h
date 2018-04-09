@@ -90,7 +90,7 @@ class ApplicationImpl : public Application
 
     virtual void generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
                               uint32_t txRate, uint32_t batchSize,
-                              bool autoRate) override;
+                              bool autoRate, uint32_t opsperTx) override;
 
     virtual LoadGenerator& getLoadGenerator() override;
 

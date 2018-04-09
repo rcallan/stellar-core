@@ -235,7 +235,7 @@ class Application
     // against the current application.
     virtual void generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
                               uint32_t txRate, uint32_t batchSize,
-                              bool autoRate) = 0;
+                              bool autoRate, uint32_t opsperTx) = 0;
 
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;

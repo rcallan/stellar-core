@@ -18,7 +18,10 @@
 *.sdf
 *.suo
 *.trs
-*.db
+*.db*
+
+*.csv
+stellar-core.dSYM/
 
 # text editors
 *~

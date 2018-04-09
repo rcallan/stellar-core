@@ -410,6 +410,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         uint32_t nTxs = 0;
         uint32_t txRate = 10;
         uint32_t batchSize = 100; // Only for account creations
+
+        uint32_t opsperTx = 0;
+
         bool autoRate = false;
         std::string mode = "create";
 
@@ -434,6 +437,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         maybeParseParam(map, "accounts", nAccounts);
         maybeParseParam(map, "txs", nTxs);
         maybeParseParam(map, "batchsize", batchSize);
+        maybeParseParam(map, "ops", opsperTx);
         {
             auto i = map.find("txrate");
             if (i != map.end() && i->second == std::string("auto"))
@@ -456,7 +460,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             retStr = "Setting batch size to its limit of 100.";
         }
         mApp.generateLoad(isCreate, nAccounts, nTxs, txRate, batchSize,
-                          autoRate);
+                          autoRate, opsperTx);
         retStr +=
             fmt::format(" Generating load: {:d} {:s}, {:d} tx/s = {:f} hours",
                         numItems, itemType, txRate, hours);
@@ -715,6 +719,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         Upgrades::UpgradeParameters p;
 
         auto upgradeTime = retMap["upgradetime"];
+        // std::cout << "the upgrade time is " << retMap["upgradetime"] << std::endl;
         std::tm tm;
         try
         {

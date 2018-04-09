@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <utility>
 #include <sstream>
+#include <iostream>
 
 namespace http
 {
@@ -207,6 +208,7 @@ void server::parseParams(const std::string& params, std::map<std::string, std::s
     }
     if(name.size() && value.size())
     {
+        std::cout << "name: " << name << " value: " << value << std::endl;
         retMap[name] = value;
     }
 }

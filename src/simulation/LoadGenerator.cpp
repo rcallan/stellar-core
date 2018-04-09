@@ -151,7 +151,8 @@ LoadGenerator::clear()
 void
 LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
                                       uint32_t nTxs, uint32_t txRate,
-                                      uint32_t batchSize, bool autoRate)
+                                      uint32_t batchSize, bool autoRate,
+                                      uint32_t opsperTx)
 {
     if (!mLoadTimer)
     {
@@ -163,11 +164,12 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
         mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
         mLoadTimer->async_wait([this, nAccounts, nTxs, txRate, batchSize,
                                 isCreate,
-                                autoRate](asio::error_code const& error) {
+                                autoRate,
+                                opsperTx](asio::error_code const& error) {
             if (!error)
             {
                 this->generateLoad(isCreate, nAccounts, nTxs, txRate, batchSize,
-                                   autoRate);
+                                   autoRate, opsperTx);
             }
         });
     }
@@ -179,11 +181,12 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
         mLoadTimer->async_wait([this, nAccounts, nTxs, txRate, batchSize,
                                 isCreate,
-                                autoRate](asio::error_code const& error) {
+                                autoRate,
+                                opsperTx](asio::error_code const& error) {
             if (!error)
             {
                 this->scheduleLoadGeneration(isCreate, nAccounts, nTxs, txRate,
-                                             batchSize, autoRate);
+                                             batchSize, autoRate, opsperTx);
             }
         });
     }
@@ -195,11 +198,17 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
 // with the remainder.
 void
 LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
-                            uint32_t txRate, uint32_t batchSize, bool autoRate)
+                            uint32_t txRate, uint32_t batchSize, bool autoRate,
+                            uint32_t opsperTx)
 {
     soci::transaction sqltx(mApp.getDatabase().getSession());
     mApp.getDatabase().setCurrentTransactionReadOnly();
     createRootAccount();
+
+    CLOG(DEBUG, "LoadGen") << "number of transactions: " << nTxs;
+    CLOG(INFO, "LoadGen") << "number of operations per transaction: " << opsperTx;
+    CLOG(DEBUG, "LoadGen") << "number of accounts: " << nAccounts;
+    CLOG(DEBUG, "LoadGen") << "isCreate: " << isCreate;
 
     // Finish if no more txs need to be created.
     if ((isCreate && nAccounts == 0) || (!isCreate && nTxs == 0))
@@ -234,7 +243,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
         }
         else
         {
-            nTxs = submitPaymentTx(nAccounts, nTxs, batchSize, ledgerNum);
+            nTxs = submitPaymentTx(nAccounts, nTxs, batchSize, opsperTx, ledgerNum);
         }
 
         if (nAccounts == 0 || (!isCreate && nTxs == 0))
@@ -263,7 +272,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
     }
 
     scheduleLoadGeneration(isCreate, nAccounts, nTxs, txRate, batchSize,
-                           autoRate);
+                           autoRate, opsperTx);
 }
 
 uint32_t
@@ -275,7 +284,7 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
     TransactionResultCode code;
     Herder::TransactionSubmitStatus status;
     bool createDuplicate = false;
-    int numTries = 0;
+    uint32_t numTries = 0;
 
     while ((status = tx.execute(mApp, true, code, batchSize)) !=
            Herder::TX_STATUS_PENDING)
@@ -304,10 +313,11 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
 
 uint32_t
 LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
-                               uint32_t batchSize, uint32_t ledgerNum)
+                               uint32_t batchSize, uint32_t opsperTx,
+                               uint32_t ledgerNum)
 {
     auto sourceAccountId = rand_uniform<uint64_t>(0, nAccounts - 1);
-    TxInfo tx = paymentTransaction(nAccounts, ledgerNum, sourceAccountId);
+    TxInfo tx = paymentTransaction(nAccounts, opsperTx, ledgerNum, sourceAccountId);
 
     TransactionResultCode code;
     Herder::TransactionSubmitStatus status;
@@ -317,7 +327,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
            Herder::TX_STATUS_PENDING)
     {
         handleFailedSubmission(tx.mFrom, status, code); // Update seq num
-        tx = paymentTransaction(nAccounts, ledgerNum,
+        tx = paymentTransaction(nAccounts, opsperTx, ledgerNum,
                                 sourceAccountId); // re-generate the tx
         if (++numTries >= TX_SUBMIT_MAX_TRIES)
         {
@@ -415,6 +425,8 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
     auto remainingTxCount = isCreate ? nAccounts / batchSize : nTxs;
     auto etaSecs =
         (uint32_t)(((double)remainingTxCount) / applyTx.one_minute_rate());
+
+    CLOG(INFO, "LoadGen") << "batch size: " << batchSize;
 
     auto etaHours = etaSecs / 3600;
     auto etaMins = etaSecs % 60;
@@ -545,14 +557,22 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
 }
 
 LoadGenerator::TxInfo
-LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t ledgerNum,
-                                  uint64_t sourceAccount)
+LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t numOperations,
+                                  uint32_t ledgerNum, uint64_t sourceAccount)
 {
     TestAccountPtr to, from;
     uint64_t amount = 1;
     std::tie(from, to) = pickAccountPair(numAccounts, ledgerNum, sourceAccount);
-    vector<Operation> paymentOps = {
-        txtest::payment(to->getPublicKey(), amount)};
+
+    vector<Operation> paymentOps;
+    paymentOps.reserve(numOperations);
+
+    for (uint32_t i = 0; i < numOperations; ++i) {
+        paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
+    }
+
+    // vector<Operation> paymentOps = {
+        // txtest::payment(to->getPublicKey(), amount)};
     TxInfo tx = TxInfo{from, paymentOps};
 
     return tx;
@@ -584,13 +604,19 @@ LoadGenerator::checkAccountSynced(Database& database)
         TestAccountPtr account = acc.second;
         auto currentSeqNum = account->getLastSequenceNumber();
         auto reloadRes = loadAccount(account, database);
+        if (!reloadRes)
+        {
+            CLOG(DEBUG, "LoadGen")
+                << "Unable to reload account " << account->getAccountId();
+        }
         // reload the account
         if (!reloadRes || currentSeqNum != account->getLastSequenceNumber())
         {
             CLOG(DEBUG, "LoadGen")
                 << "Account " << account->getAccountId()
                 << " is at sequence num " << currentSeqNum
-                << ", but the DB is at  " << account->getLastSequenceNumber();
+                << ", but the DB is at " << account->getLastSequenceNumber()
+                << " -- reload res: " << reloadRes;
             result.push_back(account);
         }
     }

@@ -355,7 +355,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
-    app.getLoadGenerator().generateLoad(true, 3, 0, 10, 100, false);
+    app.getLoadGenerator().generateLoad(true, 3, 0, 10, 100, false, 1);
     try
     {
         simulation->crankUntil(
@@ -368,7 +368,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        app.getLoadGenerator().generateLoad(false, 3, 10, 10, 100, false);
+        app.getLoadGenerator().generateLoad(false, 3, 10, 10, 100, false, 1);
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(8, 2) &&
@@ -383,6 +383,56 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
     }
 
     LOG(INFO) << simulation->metricsSummary("database");
+}
+
+TEST_CASE("Stress test on 2 nodes 10 accounts 10^6 random transactions 100 tx/sec",
+            "[stress][miltx]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = 
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID);
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0];  // pick a node to generate load
+
+    // app.getLoadGenerator().generateLoad(true, 3, 0, 10, 100, false);
+    app.getLoadGenerator().generateLoad(true, 10, 0, 10, 100, false, 1);
+    try
+    {
+        simulation->crankUntil(
+            [&]() {
+                // we need to wait 2 rounds in case the tx don't propagate
+                // to the second node in time and the second node gets the
+                // nomination
+                return simulation->haveAllExternalized(5, 2) &&
+                       simulation->accountsOutOfSyncWithDb(app).empty();
+            },
+            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        // signature for generate load is the following
+        // bool isCreate, uint32 nAccounts, uint32 nTxs, uint32 txRate, uint32 batchSize, bool autoRate
+        // app.getLoadGenerator().generateLoad(false, 3, 10, 10, 100, false);
+        app.getLoadGenerator().generateLoad(false, 10, 1000000, 100, 1000, true, 1);
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(8, 2) &&
+                       simulation->accountsOutOfSyncWithDb(app).empty();
+            },
+            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+    }
+    catch (...)
+    {
+        auto problems = simulation->accountsOutOfSyncWithDb(app);
+        REQUIRE(problems.empty());
+    }
+
+    LOG(INFO) << simulation->metricsSummary("database");
+    std::cout << "bipp bipp" << std::endl;
 }
 
 Application::pointer
@@ -409,7 +459,7 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto appPtr = newLoadTestApp(clock);
     // Create accounts
-    appPtr->generateLoad(true, 100000, 0, 10, 3, true);
+    appPtr->generateLoad(true, 100000, 0, 10, 3, true, 1);
     auto& io = clock.getIOService();
     asio::io_service::work mainWork(io);
     auto& complete =
@@ -419,7 +469,7 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
         clock.crank();
     }
     // Generate payments
-    appPtr->generateLoad(false, 100000, 100000, 10, 100, true);
+    appPtr->generateLoad(false, 100000, 100000, 10, 100, true, 1);
     while (!io.stopped() && complete.count() == 1)
     {
         clock.crank();
@@ -503,7 +553,7 @@ TEST_CASE("Accounts vs. latency", "[scalability][hide]")
     uint32_t numItems = 500000;
 
     // Create accounts
-    lg.generateLoad(true, numItems, 0, 10, 100, true);
+    lg.generateLoad(true, numItems, 0, 10, 100, true, 1);
 
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -518,7 +568,7 @@ TEST_CASE("Accounts vs. latency", "[scalability][hide]")
     txtime.Clear();
 
     // Generate payment txs
-    lg.generateLoad(false, numItems, numItems / 10, 10, 100, true);
+    lg.generateLoad(false, numItems, numItems / 10, 10, 100, true, 1);
     while (!io.stopped() && complete.count() == 1)
     {
         clock.crank();
@@ -551,7 +601,7 @@ netTopologyTest(std::string const& name,
         assert(!nodes.empty());
         auto& app = *nodes[0];
 
-        app.getLoadGenerator().generateLoad(true, 50, 0, 10, 100, false);
+        app.getLoadGenerator().generateLoad(true, 50, 0, 10, 100, false, 1);
         auto& complete =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 

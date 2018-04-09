@@ -52,14 +52,15 @@ class LoadGenerator
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
                                 uint32_t nTxs, uint32_t txRate,
-                                uint32_t batchSize, bool autoRate);
+                                uint32_t batchSize, bool autoRate,
+                                uint32_t opsperTx);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
     // with the remainder.
     void generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
-                      uint32_t txRate, uint32_t batchSize, bool autoRate);
+                      uint32_t txRate, uint32_t batchSize, bool autoRate, uint32_t opsperTx);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum);
@@ -71,6 +72,7 @@ class LoadGenerator
                     uint64_t sourceAccountId);
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
     LoadGenerator::TxInfo paymentTransaction(uint32_t numAccounts,
+                                             uint32_t numOperations,
                                              uint32_t ledgerNum,
                                              uint64_t sourceAccount);
     void handleFailedSubmission(TestAccountPtr sourceAccount,
@@ -86,7 +88,8 @@ class LoadGenerator
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
                               uint32_t ledgerNum);
     uint32_t submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
-                             uint32_t batchSize, uint32_t ledgerNum);
+                             uint32_t batchSize, uint32_t opsperTx,
+                             uint32_t ledgerNum);
 
     void updateMinBalance();
     void waitTillComplete();
