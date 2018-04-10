@@ -435,7 +435,14 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         maybeParseParam(map, "accounts", nAccounts);
         maybeParseParam(map, "txs", nTxs);
         maybeParseParam(map, "batchsize", batchSize);
+<<<<<<< HEAD
         maybeParseParam(map, "opspertx", opsperTx);
+=======
+<<<<<<< HEAD
+        maybeParseParam(map, "opspertx", opsperTx);
+=======
+>>>>>>> parent of dd97ba1f... added the option to specify the number of operations per transaction, for the tx testing tool
+>>>>>>> dsfsdfdsfsd
         {
             auto i = map.find("txrate");
             if (i != map.end() && i->second == std::string("auto"))

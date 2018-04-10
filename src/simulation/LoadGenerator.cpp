@@ -557,6 +557,10 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t numOperations,
     TestAccountPtr to, from;
     uint64_t amount = 1;
     std::tie(from, to) = pickAccountPair(numAccounts, ledgerNum, sourceAccount);
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> dsfsdfdsfsd
 
     vector<Operation> paymentOps;
     paymentOps.reserve(numOperations);
@@ -566,6 +570,13 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t numOperations,
         paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
     }
 
+<<<<<<< HEAD
+=======
+=======
+    vector<Operation> paymentOps = {
+        txtest::payment(to->getPublicKey(), amount)};
+>>>>>>> parent of dd97ba1f... added the option to specify the number of operations per transaction, for the tx testing tool
+>>>>>>> dsfsdfdsfsd
     TxInfo tx = TxInfo{from, paymentOps};
 
     return tx;
