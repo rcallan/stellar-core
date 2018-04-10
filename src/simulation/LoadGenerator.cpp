@@ -205,11 +205,6 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
     mApp.getDatabase().setCurrentTransactionReadOnly();
     createRootAccount();
 
-    CLOG(DEBUG, "LoadGen") << "number of transactions: " << nTxs;
-    CLOG(INFO, "LoadGen") << "number of operations per transaction: " << opsperTx;
-    CLOG(DEBUG, "LoadGen") << "number of accounts: " << nAccounts;
-    CLOG(DEBUG, "LoadGen") << "isCreate: " << isCreate;
-
     // Finish if no more txs need to be created.
     if ((isCreate && nAccounts == 0) || (!isCreate && nTxs == 0))
     {
@@ -268,7 +263,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
     // Emit a log message once per second.
     if (secondBoundary)
     {
-        logProgress(submit, isCreate, nAccounts, nTxs, batchSize, txRate);
+        logProgress(submit, isCreate, nAccounts, nTxs, batchSize, txRate, opsperTx);
     }
 
     scheduleLoadGeneration(isCreate, nAccounts, nTxs, txRate, batchSize,
@@ -321,7 +316,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
 
     TransactionResultCode code;
     Herder::TransactionSubmitStatus status;
-    int numTries = 0;
+    uint32_t numTries = 0;
 
     while ((status = tx.execute(mApp, false, code, batchSize)) !=
            Herder::TX_STATUS_PENDING)
@@ -412,7 +407,7 @@ LoadGenerator::inspectRate(uint32_t ledgerNum, uint32_t& txRate)
 void
 LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
                            uint32_t nAccounts, uint32_t nTxs,
-                           uint32_t batchSize, uint32_t txRate)
+                           uint32_t batchSize, uint32_t txRate, uint32_t opsperTx)
 {
     using namespace std::chrono;
 
@@ -426,13 +421,12 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
     auto etaSecs =
         (uint32_t)(((double)remainingTxCount) / applyTx.one_minute_rate());
 
-    CLOG(INFO, "LoadGen") << "batch size: " << batchSize;
-
     auto etaHours = etaSecs / 3600;
     auto etaMins = etaSecs % 60;
 
-    CLOG(INFO, "LoadGen") << "Tx/s: " << txRate << " target, "
-                          << applyTx.one_minute_rate() << "tx/"
+    CLOG(INFO, "LoadGen") << "per second: " << txRate << "tx, "
+                          << opsperTx * txRate << "op target, "
+                          << applyTx.one_minute_rate() << "tx, "
                           << applyOp.one_minute_rate() << "op actual (1m EWMA)."
                           << " Pending: " << nAccounts << " accounts, " << nTxs
                           << " txs."
@@ -567,12 +561,11 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t numOperations,
     vector<Operation> paymentOps;
     paymentOps.reserve(numOperations);
 
-    for (uint32_t i = 0; i < numOperations; ++i) {
+    for (uint32_t i = 0; i < numOperations; ++i)
+    {
         paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
     }
 
-    // vector<Operation> paymentOps = {
-        // txtest::payment(to->getPublicKey(), amount)};
     TxInfo tx = TxInfo{from, paymentOps};
 
     return tx;

@@ -437,7 +437,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         maybeParseParam(map, "accounts", nAccounts);
         maybeParseParam(map, "txs", nTxs);
         maybeParseParam(map, "batchsize", batchSize);
-        maybeParseParam(map, "ops", opsperTx);
+        maybeParseParam(map, "opspertx", opsperTx);
         {
             auto i = map.find("txrate");
             if (i != map.end() && i->second == std::string("auto"))

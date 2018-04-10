@@ -83,7 +83,8 @@ class LoadGenerator
     std::vector<TestAccountPtr> checkAccountSynced(Database& database);
     void logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
                      uint32_t nAccounts, uint32_t nTxs, uint32_t batchSize,
-                     uint32_t txRate);
+                     uint32_t txRate,
+                     uint32_t opsperTx);
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
                               uint32_t ledgerNum);
