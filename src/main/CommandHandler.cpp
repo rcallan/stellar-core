@@ -410,10 +410,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         uint32_t nTxs = 0;
         uint32_t txRate = 10;
         uint32_t batchSize = 100; // Only for account creations
-
-        uint32_t opsperTx = 0;
-
         bool autoRate = false;
+        uint32_t opsperTx = 0;
         std::string mode = "create";
 
         std::map<std::string, std::string> map;
